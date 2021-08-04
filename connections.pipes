@@ -1,4 +1,2 @@
 #pipe_existing_files=false
 pipe / to /index.rorhtml
-pipe /docs/* to /docs.html
-pipe /gamer/games/* to /gamer.html
