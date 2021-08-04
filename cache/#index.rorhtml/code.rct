@@ -1,0 +1,4 @@
+package io; var cwd <- io::GetCurrentDirectory(); io::ChangeDirectory(cwd+"/./cache/#index.rorhtml");
+ #attach("./../../boilerplate.rct"); 
+ io::ChangeDirectory(cwd); 
+ /*INTERNAL*/ Write(private_uuid + "+");  from (i <- 0) to form_keys->GetLength()-1 { Print((form_keys[i]) + " : " + (form_values[i]) + "<br>");} /*INTERNAL*/ Write(private_uuid + ".");  /*INTERNAL*/ Write(private_uuid + "+"); Print(io::GetCurrentDirectory()); var a <- 1 / 0; /*INTERNAL*/ Write(private_uuid + "."); 

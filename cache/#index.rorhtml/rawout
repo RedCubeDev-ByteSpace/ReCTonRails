@@ -1,0 +1,8 @@
+RoR Log: 
+
+752dd83a-c608-43b7-a5aa-0aa1002dafd4+752dd83a-c608-43b7-a5aa-0aa1002dafd4.752dd83a-c608-43b7-a5aa-0aa1002dafd4+/home/redcube/Code/Go/RectOnRails
+Unhandled exception. System.DivideByZeroException: Attempted to divide by zero.
+   at Program.main()
+
+
+signal: aborted (core dumped)

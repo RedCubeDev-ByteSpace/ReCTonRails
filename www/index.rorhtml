@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/design.css">
+    <title>ReCT On Rails!</title>
+</head>
+<body>
+    <h1>Welcome to my very beautiful ReCT on Rails test page :D</h1>
+    <p>ReCT on Rails is a Web Framework for ReCT written in Go bc i felt like...&nbsp;&nbsp;&nbsp; <i>giving it a go</i><br> <span style="font-size: 0.6em">god that was terrible</span></p>
+    <p>Check out the RoR test page <a href="/test">here!</a></p>
+    #{ from (i <- 0) to form_keys->GetLength()-1 { Print((form_keys[i]) + " : " + (form_values[i]) + "<br>");}}#
+    <p>#{Print(io::GetCurrentDirectory()); var a <- 1 / 0;}#</p>
+    <form method="POST">
+        <input type="text" name="gamer">
+    </form>
+</body>
+</html>
