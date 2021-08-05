@@ -13,7 +13,7 @@ var starPrefixes []string
 var shut bool = false
 
 func main() {
-	fmt.Println("ReCT On Rails! v1.1  --  A Web-Framework for ReCT")
+	fmt.Println("ReCT On Rails! v1.2  --  A Web-Framework for ReCT")
 
 	port := "8080"
 
@@ -89,13 +89,17 @@ func resolveRequest(url string, w http.ResponseWriter, r *http.Request) []byte {
 
 		//if piping for files is requested, pipe
 		if strings.HasPrefix(string(pipeBuf), "#pipe_existing_files=true") && !wasPiped {
-			goto skip
+			goto pipeMe
 		}
 
 		//if file was found -> return
 		if err == nil {
 			if strings.HasSuffix(url, ".rorhtml") {
-				return []byte(EvaluateRoR(string(buf), url, w, r))
+				//watch := stopwatch.Start()
+				rorres := EvaluateRoR(string(buf), url, w, r)
+				//watch.Stop()
+				//color.Red("[Debug] Function \"EvaluateRoR\" took: " + fmt.Sprint(watch.Seconds().Nanoseconds()) + " Seconds\n")
+				return []byte(rorres)
 			}
 			return buf
 		}
@@ -107,7 +111,7 @@ func resolveRequest(url string, w http.ResponseWriter, r *http.Request) []byte {
 		fmt.Println("[Router] File does not exist [" + url + "], checking pipes...")
 	}
 
-skip:
+pipeMe:
 
 	//Read the connections.pipes file
 	pipeFile := string(pipeBuf)

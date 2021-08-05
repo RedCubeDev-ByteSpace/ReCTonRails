@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -50,24 +51,12 @@ func EvaluateRoR(code string, file string, w http.ResponseWriter, r *http.Reques
 
 	var snippets []string
 
-	lastSnippet := ""
-	inSnippit := false
+	snippetRegex := regexp.MustCompile(`#{[\s\S]+?}#`)
+	snippetMatches := snippetRegex.FindAllString(code, -1)
 
-	for i := 1; i < len(code); i++ {
-		if !inSnippit {
-			if string([]rune(code)[i]) == "{" && string([]rune(code)[i-1]) == "#" {
-				inSnippit = true
-				continue
-			}
-		} else {
-			if string([]rune(code)[i]) == "}" && string([]rune(code)[i+1]) == "#" {
-				snippets = append(snippets, lastSnippet)
-				lastSnippet = ""
-				inSnippit = false
-				i++
-				continue
-			}
-			lastSnippet += string([]rune(code)[i])
+	if snippetMatches != nil {
+		for i := 0; i < len(snippetMatches); i++ {
+			snippets = append(snippets, strings.TrimSuffix(strings.TrimPrefix(snippetMatches[i], "#{"), "}#"))
 		}
 	}
 
@@ -84,22 +73,28 @@ func EvaluateRoR(code string, file string, w http.ResponseWriter, r *http.Reques
 	if !shut {
 		fmt.Println("[RoR] Creating Cache and serving Page...  [ " + dir + " ]")
 	}
+
 	return SlotInResults(code, ReplaceDataAndRunBinary(uuid, r, dir, string(nHash)), uuid, w, dir)
 }
 
 func AssembleReCTCode(snippets []string, uuid string, r *http.Request, dir string) string {
+	//watch := stopwatch.Start()
 	code := "package io; var cwd <- io::GetCurrentDirectory(); io::ChangeDirectory(cwd+\"/" + dir + "\");\n #attach(\"./../../boilerplate.rct\"); \n io::ChangeDirectory(cwd); \n"
 
 	for i := 0; i < len(snippets); i++ {
-		code += " /*INTERNAL*/ Write(private_uuid + \"+\"); "
+		code += "\n /*INTERNAL*/ Write(private_uuid + \"+ \"); \n"
 		code += snippets[i]
-		code += " /*INTERNAL*/ Write(private_uuid + \".\"); "
+		code += "\n /*INTERNAL*/ Write(private_uuid + \".\"); \n"
 	}
+
+	//watch.Stop()
+	//color.Cyan("[Debug] Function \"AssembleReCTCode\" took: " + fmt.Sprint(watch.Seconds().Nanoseconds()) + " Seconds\n")
 
 	return code
 }
 
 func CompileReCTCode(code string, url string, dir string) (bool, string) {
+	//watch := stopwatch.Start()
 	if !shut {
 		fmt.Println("[RoR] Compiling...  [ " + dir + "/code.rct" + " ]")
 	}
@@ -116,12 +111,20 @@ func CompileReCTCode(code string, url string, dir string) (bool, string) {
 	out, _ := cmd.CombinedOutput()
 
 	if _, err := os.Stat(dir + "/binary.dll"); err != nil {
+		//watch.Stop()
+		//color.Cyan("[Debug] Function \"CompileReCTCode\" took: " + fmt.Sprint(watch.Seconds().Nanoseconds()) + " Seconds\n")
+
 		return true, "RoR Log: \n\n" + string(out)
 	}
+
+	//watch.Stop()
+	//color.Cyan("[Debug] Function \"CompileReCTCode\" took: " + fmt.Sprint(watch.Seconds().Nanoseconds()) + " Seconds\n")
+
 	return false, string(out)
 }
 
 func ReplaceDataAndRunBinary(uuid string, r *http.Request, dir string, hash string) string {
+	//watch := stopwatch.Start()
 	os.WriteFile(dir+"/essentials", []byte(r.Method+"\n"+r.URL.Path+"\n"+uuid), 0644)
 	os.Mkdir("./cache/upload/"+strings.ReplaceAll(uuid, "-", ""), os.ModePerm)
 
@@ -171,15 +174,23 @@ func ReplaceDataAndRunBinary(uuid string, r *http.Request, dir string, hash stri
 
 	if err != nil {
 		os.RemoveAll("./cache/upload/" + strings.ReplaceAll(uuid, "-", "") + "/")
+
+		//watch.Stop()
+		//color.Cyan("[Debug] Function \"ReplaceDataAndRunBinary\" took: " + fmt.Sprint(watch.Seconds().Nanoseconds()) + " Seconds\n")
+
 		return "RoR Log: \n\n" + string(appout) + "\n\n" + err.Error()
 	}
 
 	os.RemoveAll("./cache/upload/" + strings.ReplaceAll(uuid, "-", "") + "/")
 
+	//watch.Stop()
+	//color.Cyan("[Debug] Function \"ReplaceDataAndRunBinary\" took: " + fmt.Sprint(watch.Seconds().Nanoseconds()) + " Seconds\n")
+
 	return string(appout)
 }
 
 func RunReCTCode(code string, uuid string) string {
+	//watch := stopwatch.Start()
 	os.WriteFile("./cache/rorcode.rct", []byte(code), 0644)
 	cmd := exec.Command("rctc", "./cache/rorcode.rct", "-s", "-f", "-o", "./cache/rorcom.dll")
 	out, _ := cmd.CombinedOutput()
@@ -191,6 +202,9 @@ func RunReCTCode(code string, uuid string) string {
 	app := exec.Command("dotnet", "./cache/rorcom.dll")
 	appout, _ := app.Output()
 
+	//watch.Stop()
+	//color.Cyan("[Debug] Function \"RunReCTCode\" took: " + fmt.Sprint(watch.Seconds().Nanoseconds()) + " Seconds\n")
+
 	return string(appout)
 }
 
@@ -201,54 +215,41 @@ func SlotInResults(source string, result string, uuid string, w http.ResponseWri
 		return result
 	}
 
+	//watch := stopwatch.Start()
+
 	var snippets []string
 
-	lastSnippet := ""
-	inSnippit := false
+	snippetRegex := regexp.MustCompile(`#{[\s\S]+?}#`)
+	snippetMatches := snippetRegex.FindAllString(source, -1)
 
-	for i := 1; i < len(source); i++ {
-		if !inSnippit {
-			if string([]rune(source)[i]) == "{" && string([]rune(source)[i-1]) == "#" {
-				inSnippit = true
-				lastSnippet = "#{"
-				continue
-			}
-		} else {
-			if string([]rune(source)[i]) == "}" && string([]rune(source)[i+1]) == "#" {
-				lastSnippet += "}#"
-				snippets = append(snippets, lastSnippet)
-				lastSnippet = ""
-				inSnippit = false
-				i++
-				continue
-			}
-			lastSnippet += string([]rune(source)[i])
+	if snippetMatches != nil {
+		for i := 0; i < len(snippetMatches); i++ {
+			snippets = append(snippets, snippetMatches[i])
 		}
 	}
+
+	//watch.Stop()
+	//color.Green("[Debug] Part \"GetSnippets\" took: " + fmt.Sprint(watch.Seconds().Nanoseconds()) + " Seconds\n")
+	//watch.Start()
 
 	var slotins []string
 
-	lastSlotin := ""
-	inSnippit = false
+	slotinRegex := regexp.MustCompile(uuid + `\+([\s\S]+?)?` + uuid + `\.`)
+	slotinMatches := slotinRegex.FindAllString(result, -1)
 
-	for i := 36; i < len(result); i++ {
-		if !inSnippit {
-			if string([]rune(result)[i]) == "+" && result[i-36:i] == uuid {
-				inSnippit = true
-				continue
-			}
-		} else {
-			if string([]rune(result)[i]) == "." && result[i-36:i] == uuid {
-				slotins = append(slotins, lastSlotin[0:len(lastSlotin)-36])
-				lastSlotin = ""
-				inSnippit = false
-				continue
-			}
-			lastSlotin += string([]rune(result)[i])
+	if slotinMatches != nil {
+		for i := 0; i < len(slotinMatches); i++ {
+			slotins = append(slotins, strings.TrimSuffix(strings.TrimPrefix(slotinMatches[i], uuid+"+"), uuid+"."))
 		}
 	}
 
-	inSnippit = false
+	//watch.Stop()
+	//color.Green("[Debug] Part \"GetSlotins\" took: " + fmt.Sprint(watch.Seconds().Nanoseconds()) + " Seconds\n")
+	//watch.Start()
+
+	inSnippit := false
+	lastSlotin := ""
+
 	if strings.Contains(result, uuid+";") {
 		cookiename := ""
 		cookievalue := ""
@@ -256,36 +257,48 @@ func SlotInResults(source string, result string, uuid string, w http.ResponseWri
 
 		for i := 36; i < len(result); i++ {
 			if !inSnippit {
-				if string([]rune(result)[i]) == ";" && result[i-36:i] == uuid {
-					inSnippit = true
-					continue
+				if string([]rune(result)[i]) == ";" {
+					if result[i-36:i] == uuid {
+						inSnippit = true
+						continue
+					}
 				}
 			} else {
-				if string([]rune(result)[i]) == "," && result[i-36:i] == uuid {
-					cookiename = lastSlotin[0 : len(lastSlotin)-36]
-					lastSlotin = ""
-					continue
+				if string([]rune(result)[i]) == "," {
+					if result[i-36:i] == uuid {
+						cookiename = lastSlotin[0 : len(lastSlotin)-36]
+						lastSlotin = ""
+						continue
+					}
 				}
-				if string([]rune(result)[i]) == ":" && result[i-36:i] == uuid {
-					cookievalue = lastSlotin[0 : len(lastSlotin)-36]
-					lastSlotin = ""
-					continue
+				if string([]rune(result)[i]) == ":" {
+					if result[i-36:i] == uuid {
+						cookievalue = lastSlotin[0 : len(lastSlotin)-36]
+						lastSlotin = ""
+						continue
+					}
 				}
-				if string([]rune(result)[i]) == ";" && result[i-36:i] == uuid {
-					cookiedeath, _ = strconv.Atoi(lastSlotin[0 : len(lastSlotin)-36])
-					snippets = append(snippets, uuid+";"+cookiename+uuid+","+cookievalue+uuid+":"+lastSlotin[0:len(lastSlotin)-36]+uuid+";")
-					slotins = append(slotins, "")
-					inSnippit = false
-					lastSlotin = ""
-					http.SetCookie(w, &http.Cookie{Name: cookiename, Value: cookievalue, Expires: time.Now().Add(time.Second * time.Duration(cookiedeath))})
-					continue
+				if string([]rune(result)[i]) == ";" {
+					if result[i-36:i] == uuid {
+						cookiedeath, _ = strconv.Atoi(lastSlotin[0 : len(lastSlotin)-36])
+						snippets = append(snippets, uuid+";"+cookiename+uuid+","+cookievalue+uuid+":"+lastSlotin[0:len(lastSlotin)-36]+uuid+";")
+						slotins = append(slotins, "")
+						inSnippit = false
+						lastSlotin = ""
+						http.SetCookie(w, &http.Cookie{Name: cookiename, Value: cookievalue, Expires: time.Now().Add(time.Second * time.Duration(cookiedeath))})
+						continue
+					}
 				}
 				lastSlotin += string([]rune(result)[i])
 			}
 		}
 	}
 
-	for i := 0; i < len(snippets); i++ {
+	//watch.Stop()
+	//color.Green("[Debug] Part \"PlonkInSlotins\" took: " + fmt.Sprint(watch.Seconds().Nanoseconds()) + " Seconds\n")
+	//watch.Start()
+
+	for i := 0; i < len(slotins); i++ {
 		source = strings.Replace(source, snippets[i], slotins[i], 1)
 	}
 
@@ -293,6 +306,9 @@ func SlotInResults(source string, result string, uuid string, w http.ResponseWri
 		parts := strings.Split(source, uuid+"!")
 		return parts[0]
 	}
+
+	//watch.Stop()
+	//color.Cyan("[Debug] Function \"SlotInResults\" took: " + fmt.Sprint(watch.Seconds().Nanoseconds()) + " Seconds\n")
 
 	return source
 }
