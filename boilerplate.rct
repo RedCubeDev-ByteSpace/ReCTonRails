@@ -12,6 +12,7 @@ var arr_essentials <- f_essentials->Split(Char(10));
 set mode <- arr_essentials[0];
 set url <- arr_essentials[1];
 set private_uuid <- arr_essentials[2];
+set domain <- arr_essentials[3];
 
 //read in Request Data
 set form_keys <- make string array(0); set form_values <- make string array(0); 
@@ -38,7 +39,7 @@ function SetCookie(name string, value string, exprireInSecond int) { Write(priva
 function UploadExists(name string) bool { return (GetUpload(name) != "") }
 function GetUpload(name string) string { from (i <- 0) to file_keys->GetLength() - 1 { if ((file_keys[i]) = name) return file_values[i]; } return ""; }
 
-function Escape(text string) string { return ~text->Replace("<", "&lt;")->Replace(">", "&gt;"); }
+function Escape(text string) string { return text->Replace("<", "&lt;")->Replace(">", "&gt;"); }
 function Stop() { Write(private_uuid + "!"); }
 
 //page code:

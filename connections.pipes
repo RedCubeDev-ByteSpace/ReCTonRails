@@ -1,2 +1,12 @@
-#pipe_existing_files=false
-pipe / to /index.rorhtml
+pipe / to /index.html
+
+pipe /test to /test.rorhtml
+
+domain docs.rect.ml
+	pipe / to /docs.rorhtml
+	pipe /* to /docs.rorhtml
+end domain
+
+domain ror.rect.ml
+	pipe / to /ror.html
+end domain

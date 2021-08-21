@@ -35,7 +35,7 @@ func EvaluateRoR(code string, file string, w http.ResponseWriter, r *http.Reques
 	}
 
 	//if page cached, check hash if file didnt change return if it did recompile
-	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+	if _, err := os.Stat(dir); !os.IsNotExist(err) && !nocache {
 		hash, _ := os.ReadFile(dir + "/hash")
 
 		if string(hash) == string(nHash) {
@@ -125,7 +125,7 @@ func CompileReCTCode(code string, url string, dir string) (bool, string) {
 
 func ReplaceDataAndRunBinary(uuid string, r *http.Request, dir string, hash string) string {
 	//watch := stopwatch.Start()
-	os.WriteFile(dir+"/essentials", []byte(r.Method+"\n"+r.URL.Path+"\n"+uuid), 0644)
+	os.WriteFile(dir+"/essentials", []byte(r.Method+"\n"+r.URL.Path+"\n"+uuid+"\n"+r.Host), 0644)
 	os.Mkdir("./cache/upload/"+strings.ReplaceAll(uuid, "-", ""), os.ModePerm)
 
 	FormFile := ""
@@ -299,7 +299,7 @@ func SlotInResults(source string, result string, uuid string, w http.ResponseWri
 	//watch.Start()
 
 	for i := 0; i < len(slotins); i++ {
-		source = strings.Replace(source, snippets[i], slotins[i], 1)
+		source = strings.Replace(source, snippets[i], strings.TrimPrefix(slotins[i], " "), 1)
 	}
 
 	if strings.Contains(source, uuid+"!") {

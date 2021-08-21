@@ -6,22 +6,57 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/fatih/color"
 )
 
 var wasPiped bool = false
 var starPrefixes []string
 var shut bool = false
+var ssl bool = false
+var nocache bool = false
+var pipeCounter int = 0
 
 func main() {
-	fmt.Println("ReCT On Rails! v1.2  --  A Web-Framework for ReCT")
+	fmt.Println("ReCT On Rails! v1.3  --  A Web-Framework for ReCT")
+
+	for i := 0; i < len(os.Args); i++ {
+		if os.Args[i] == "--shut" {
+			shut = true
+		} else if os.Args[i] == "--useSSL" {
+			ssl = true
+		} else if os.Args[i] == "--noCache" {
+			nocache = true
+			color.Red("Caching is DISBALED! (this is a debug feature, do NOT use this on a production site! It will cause massive slowdowns.)")
+		}
+	}
 
 	port := "8080"
+	sslport := "443"
 
 	if os.Getenv("PORT") != "" {
 		port = os.Getenv("PORT")
 	}
 
+	if os.Getenv("SSLPORT") != "" {
+		sslport = os.Getenv("SSLPORT")
+	}
+
 	fmt.Println("Listening on Port " + port)
+
+	if ssl {
+		fmt.Println("Listening on Port " + sslport + " (HTTPS)...")
+
+		if _, err := os.Stat("./ssl/server.key"); err != nil {
+			color.Red("Couldnt find file './ssl/server.key' (and started in SSL Mode)! Aborting...")
+			os.Exit(-1)
+		}
+
+		if _, err := os.Stat("./ssl/server.key"); err != nil {
+			color.Red("Couldnt find file './ssl/server.crt' (and started in SSL Mode)! Aborting...")
+			os.Exit(-1)
+		}
+	}
 
 	fs := http.FileServer(http.Dir("www/static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
@@ -58,25 +93,45 @@ func main() {
 		}
 	}
 
-	if len(os.Args) > 1 {
-		if os.Args[1] == "--shut" {
-			shut = true
-			fmt.Println("Will not print debug messages.")
+	//start http server
+	if !ssl {
+		color.Yellow("Your server does not have SSL / HTTPS! You can find more info on how to use SSL on the RoR Docs.")
+		if err := http.ListenAndServe(":"+port, nil); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		go redirectThread(port)
+		if err := http.ListenAndServeTLS(":"+sslport, "./ssl/server.crt", "./ssl/server.key", nil); err != nil {
+			log.Fatal(err)
 		}
 	}
 
-	//start http server
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+}
+
+func redirectThread(port string) {
+	fmt.Println("Starting HTTP redirect server... (forcing HTTPS)")
+	if err := http.ListenAndServe(":"+port, http.HandlerFunc(redirectSSL)); err != nil {
 		log.Fatal(err)
 	}
 }
 
+func redirectSSL(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "https://"+r.Host+r.RequestURI, http.StatusMovedPermanently)
+}
+
 func requestHandler(w http.ResponseWriter, r *http.Request) {
 	wasPiped = false
+	pipeCounter = 0
 	fmt.Fprint(w, string(resolveRequest(r.URL.Path, w, r)))
 }
 
 func resolveRequest(url string, w http.ResponseWriter, r *http.Request) []byte {
+	pipeCounter++
+
+	if pipeCounter > 10 {
+		return []byte("500 - Internal Server Error! Found endless Loop in Pipes.")
+	}
+
 	pipeBuf, err := os.ReadFile("connections.pipes")
 
 	if err != nil {
@@ -113,51 +168,52 @@ func resolveRequest(url string, w http.ResponseWriter, r *http.Request) []byte {
 
 pipeMe:
 
-	//Read the connections.pipes file
-	pipeFile := string(pipeBuf)
-	pipes := strings.Split(pipeFile, "\n")
-	pipeMap := make(map[string]string)
+	domains := ParsePipes()
+	domain, ok := domains[r.Host]
 
-	//parse the file
-	for i := 0; i < len(pipes); i++ {
-		if pipes[i] == "" || strings.HasPrefix(pipes[i], "#") {
-			continue
-		}
-		pipe := strings.Split(pipes[i], " ")
-		pipeMap[pipe[1]] = pipe[3]
+	// choose default domain if there isnt a domain entry
+	if !ok {
+		domain = domains["default"]
 	}
 
-	//check for star pipe
-	starPipe, ok := pipeMap["*"]
-	if ok {
+	// check for "star pipe" (*) for redirect of everything
+	if domain.AllPipe != "" {
 		wasPiped = true
-		return resolveRequest(starPipe, w, r)
+		return resolveRequest(domain.AllPipe, w, r)
 	}
 
-	//check for prefixed star pipe
-	for i := 0; i < len(starPrefixes); i++ {
-		if strings.HasPrefix(url, starPrefixes[i]) {
-			preStarPipe, ok := pipeMap[starPrefixes[i]+"*"]
-
-			if ok {
-				wasPiped = true
-				return resolveRequest(preStarPipe, w, r)
-			}
+	// check all wildcards
+	for i := 0; i < len(domain.Wildcards); i++ {
+		if strings.HasPrefix(url, domain.Wildcards[i][0]) {
+			wasPiped = true
+			return resolveRequest(domain.Wildcards[i][1], w, r)
 		}
 	}
 
-	usePipe, ok := pipeMap[url]
+	// check if request is coming from error pipe and search for it
+	if url == "?" {
+		if domain.ErrorPipe != "" {
+			wasPiped = true
+			return resolveRequest(domain.ErrorPipe, w, r)
+		} else if domains["default"].ErrorPipe != "" {
+			wasPiped = true
+			return resolveRequest(domains["default"].ErrorPipe, w, r)
+		} else {
+			return []byte("404 - File not found")
+		}
+	}
+
+	usePipe, ok := domain.Pipes[url]
 
 	//If pipe not found move to error pipe, if it was looking for the error pipe already then return error
 	if !ok {
-		if url == "?" {
-			return []byte("404 - File not found")
-		}
 		if !shut {
 			fmt.Println("[Router] Couldnt find Pipe! Redirecting to Error Pipe...")
 		}
 		return resolveRequest("?", w, r)
 	}
+
+	// if pipe exist, pipe it!
 	if !shut {
 		fmt.Println("[Router] Found Pipe! piping... [" + url + " --> " + usePipe + "]")
 	}

@@ -12,6 +12,7 @@ var arr_essentials <- f_essentials->Split(Char(10));
 set mode <- arr_essentials[0];
 set url <- arr_essentials[1];
 set private_uuid <- arr_essentials[2];
+set domain <- arr_essentials[3];
 
 //read in Request Data
 set form_keys <- make string array(0); set form_values <- make string array(0); 
